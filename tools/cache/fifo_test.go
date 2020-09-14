@@ -22,6 +22,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func testFifoObjectKeyFunc(obj interface{}) (string, error) {
@@ -29,12 +31,18 @@ func testFifoObjectKeyFunc(obj interface{}) (string, error) {
 }
 
 type testFifoObject struct {
+	metav1.ObjectMeta
 	name string
 	val  interface{}
 }
 
 func mkFifoObj(name string, val interface{}) testFifoObject {
 	return testFifoObject{name: name, val: val}
+}
+
+// implementation of metav1.ObjectMetaAccessor
+func (obj testFifoObject) GetObjectMeta() metav1.Object {
+	return &obj.ObjectMeta
 }
 
 func TestFIFO_basic(t *testing.T) {

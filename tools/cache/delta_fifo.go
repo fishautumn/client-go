@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"k8s.io/klog/v2"
@@ -349,9 +350,11 @@ func dedupDeltas(deltas Deltas) Deltas {
 
 // If a & b represent the same event, returns the delta that ought to be kept.
 // Otherwise, returns nil.
-// TODO: is there anything other than deletions that need deduping?
 func isDup(a, b *Delta) *Delta {
 	if out := isDeletionDup(a, b); out != nil {
+		return out
+	}
+	if out := isTypeAndResourceVersionDup(a, b); out != nil {
 		return out
 	}
 	// TODO: Detect other duplicate situations? Are there any?
@@ -368,6 +371,41 @@ func isDeletionDup(a, b *Delta) *Delta {
 		return a
 	}
 	return b
+}
+
+// keep the one with the most information if both are syncs and are with identical resourceVersion.
+func isTypeAndResourceVersionDup(a, b *Delta) *Delta {
+	if b.Type != a.Type {
+		return nil
+	}
+
+	// get resourceVersion of a
+	accessor, error := meta.CommonAccessor(a.Object)
+	if error != nil {
+		return nil
+	}
+	va := accessor.GetResourceVersion()
+
+	// get resourceVersion of b
+	accessor, error = meta.CommonAccessor(b.Object)
+	if error != nil {
+		return nil
+	}
+	vb := accessor.GetResourceVersion()
+
+	// compare objects' resource version
+	if va != vb {
+		return nil
+	}
+	return a
+}
+
+func getResourceVersion(obj interface{}) (string, bool) {
+	accessor, err := meta.CommonAccessor(obj)
+	if err != nil {
+		return "", false
+	}
+	return accessor.GetResourceVersion(), true
 }
 
 // queueActionLocked appends to the delta list for the object.

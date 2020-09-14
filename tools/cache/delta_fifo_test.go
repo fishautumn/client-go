@@ -510,6 +510,38 @@ func TestDeltaFIFO_HasSyncedCorrectOnDeletion(t *testing.T) {
 	}
 }
 
+func TestDeltaFIFO_HasSyncedCorrectOnDupResourceVersion(t *testing.T) {
+	obj1 := mkFifoObj("foo", 5)
+	obj1.ResourceVersion = "1"
+	obj2 := mkFifoObj("foo", 5)
+	obj2.ResourceVersion = "2"
+
+	f := NewDeltaFIFO(
+		testFifoObjectKeyFunc,
+		nil,
+	)
+	f.Replace([]interface{}{obj1}, "0")
+	f.Replace([]interface{}{obj1}, "0")
+	f.Replace([]interface{}{obj2}, "0")
+
+	expectedList := []Deltas{
+		{{Sync, obj1}, {Sync, obj2}},
+	}
+
+	for _, expected := range expectedList {
+		if f.HasSynced() {
+			t.Errorf("Expected HasSynced to be false")
+		}
+		cur := Pop(f).(Deltas)
+		if e, a := expected, cur; !reflect.DeepEqual(e, a) {
+			t.Errorf("Expected %#v, got %#v", e, a)
+		}
+	}
+	if !f.HasSynced() {
+		t.Errorf("Expected HasSynced to be true")
+	}
+}
+
 func TestDeltaFIFO_detectLineJumpers(t *testing.T) {
 	f := NewDeltaFIFO(testFifoObjectKeyFunc, nil)
 
